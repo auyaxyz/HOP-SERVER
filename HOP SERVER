@@ -1,0 +1,48 @@
+local Http = game:GetService("HttpService")
+local TPS = game:GetService("TeleportService")
+local Api = "https://games.roblox.com/v1/games/"
+
+local _place = game.PlaceId
+local _servers = Api .. _place .. "/servers/Public?sortOrder=Asc&limit=100"
+
+function ListServers(cursor)
+    local Raw = game:HttpGet(_servers .. (cursor and "&cursor=" .. cursor or ""))
+    return Http:JSONDecode(Raw)
+end
+
+local function hopToLowPlayerServer()
+    local targetServer = nil
+    local Next
+
+    -- Mengambil semua server dan mencari server dengan 1-4 pemain
+    repeat
+        local success, Servers = pcall(ListServers, Next)  -- Menggunakan pcall untuk menangani kesalahan
+
+        if success and Servers.data and type(Servers.data) == "table" then
+            for _, Server in ipairs(Servers.data) do
+                -- Memeriksa apakah jumlah pemain berada dalam rentang 1-4
+                if Server.playing >= 1 and Server.playing <= 4 then
+                    targetServer = Server
+                    break  -- Hentikan pencarian setelah menemukan server yang sesuai
+                end
+            end
+        else
+            print("Gagal mengambil data server atau tidak ada data.")
+        end
+
+        Next = Servers.nextPageCursor
+    until targetServer or not Next  -- Hentikan jika sudah menemukan server atau tidak ada halaman lagi
+
+    -- Teleport ke server yang ditemukan jika ada
+    if targetServer and targetServer.id then
+        print("Teleporting to server with " .. targetServer.playing .. " players.")
+        TPS:TeleportToPlaceInstance(_place, targetServer.id, game.Players.LocalPlayer)
+    else
+        print("Tidak ada server dengan 1-4 pemain tersedia. Mencoba lagi...")
+        wait(10)  -- Tunggu sebelum mencoba lagi
+        hopToLowPlayerServer()  -- Panggil fungsi ini lagi untuk mencoba menemukan server
+    end
+end
+
+-- Jalankan fungsi untuk pertama kali
+hopToLowPlayerServer()
